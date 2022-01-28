@@ -33,12 +33,8 @@ async def _(event):
                 except BaseException:
                     pass
             arg = event.text.split(" ", maxsplit=2)
-            if len(arg) > 2:
-                FBAN = arg[1]
-                REASON = arg[2]
-            else:
-                FBAN = arg[1]
-                REASON = " #TBMassBanned "
+            FBAN = arg[1]
+            REASON = arg[2] if len(arg) > 2 else " #TBMassBanned "
         else:
             FBAN = previous_message.sender_id
             try:
@@ -73,13 +69,13 @@ async def _(event):
                     await msg.edit("You can't ban my dev!!")
                     return
             except Exception as e:
-                print(str(e))
+                print(e)
                 return await msg.edit(str(e))
     except Exception as e:
-        print(str(e))
+        print(e)
         return await msg.edit(str(e))
 
-        
+
     chat = await event.get_chat()
     if not len(fedList):
         for a in range(3):
@@ -117,7 +113,7 @@ async def _(event):
                     ):
                         await msg.edit("Try again after 5 mins.")
                         return
-                if len(fedList) == 0:
+                if not fedList:
                     await msg.edit(
                         f"Unable to collect FedAdminList. Retrying ({a+1}/3)..."
                     )
@@ -137,12 +133,12 @@ async def _(event):
                     In = True
             elif In:
                 tempFedId += x
-        if len(fedList) == 0:
+        if not fedList:
             await msg.edit("Unable to collect FedAdminList.")
             return
     await msg.edit(f"FBaning in {len(fedList)} feds.")
     try:
-        await ultroid_bot.send_message(FED_LOGGER, f"/start")
+        await ultroid_bot.send_message(FED_LOGGER, '/start')
     except BaseException:
         await msg.edit("Specified FBan Group ID is incorrect.")
         return
@@ -157,7 +153,7 @@ async def _(event):
     try:
         os.remove("fedlist")
     except Exception as e:
-        print(f"Error in removing FedAdmin file.\n{str(e)}")
+        print(f'Error in removing FedAdmin file.\n{e}')
     await msg.edit(
         "SuperFBan Completed.\n#TB"
     )
@@ -181,12 +177,8 @@ async def _(event):
                 except BaseException:
                     pass
             arg = event.text.split(" ", maxsplit=2)
-            if len(arg) > 2:
-                FBAN = arg[1]
-                REASON = arg[2]  # rose unbans now can have reasons
-            else:
-                FBAN = arg[1]
-                REASON = ""
+            FBAN = arg[1]
+            REASON = arg[2] if len(arg) > 2 else ""
         else:
             FBAN = previous_message.sender_id
             try:
@@ -211,7 +203,7 @@ async def _(event):
                 return await msg.edit("`No user designated!`")
 
 
-        
+
     chat = await event.get_chat()
     if not len(fedList):
         for a in range(3):
@@ -249,7 +241,7 @@ async def _(event):
                     ):
                         await msg.edit("Try again after 5 mins.")
                         return
-                if len(fedList) == 0:
+                if not fedList:
                     await msg.edit(
                         f"Unable to collect FedAdminList. Retrying ({a+1}/3)..."
                     )
@@ -269,12 +261,12 @@ async def _(event):
                     In = True
             elif In:
                 tempFedId += x
-        if len(fedList) == 0:
+        if not fedList:
             await msg.edit("Unable to collect FedAdminList.")
             return
     await msg.edit(f"UnFBaning in {len(fedList)} feds.")
     try:
-        await ultroid_bot.send_message(FED_LOGGER, f"/start")
+        await ultroid_bot.send_message(FED_LOGGER, '/start')
     except BaseException:
         await msg.edit("Specified FBan Group ID is incorrect.")
         return
@@ -290,7 +282,7 @@ async def _(event):
     try:
         os.remove("fedlist")
     except Exception as e:
-        print(f"Error in removing FedAdmin file.\n{str(e)}")
+        print(f'Error in removing FedAdmin file.\n{e}')
     await msg.edit(
         "SuperUnFBan Completed.\n#TB"
     )

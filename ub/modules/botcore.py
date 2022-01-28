@@ -124,45 +124,40 @@ async def sysdetails(sysd):
 
 @javes05(outgoing=True, pattern="^\!pip(?: |$)(.*)")
 async def pipcheck(pip):
-    """ For .pip command, do a pip search. """
-    pipmodule = pip.pattern_match.group(1)
-    if pipmodule:
-        await pip.edit("`Searching . . .`")
-        invokepip = f"pip3 search {pipmodule}"
-        pipc = await asyncrunapp(
-            invokepip,
-            stdout=asyncPIPE,
-            stderr=asyncPIPE,
-        )
+   """ For .pip command, do a pip search. """
+   if pipmodule := pip.pattern_match.group(1):
+      await pip.edit("`Searching . . .`")
+      invokepip = f"pip3 search {pipmodule}"
+      pipc = await asyncrunapp(
+          invokepip,
+          stdout=asyncPIPE,
+          stderr=asyncPIPE,
+      )
 
-        stdout, stderr = await pipc.communicate()
-        pipout = str(stdout.decode().strip()) \
-            + str(stderr.decode().strip())
-
-        if pipout:
-            if len(pipout) > 4096:
-                await pip.edit("`Output too large, sending as file`")
-                file = open("output.txt", "w+")
-                file.write(pipout)
-                file.close()
-                await pip.client.send_file(
-                    pip.chat_id,
-                    "output.txt",
-                    reply_to=pip.id,
-                )
-                remove("output.txt")
-                return
-            await pip.edit("**Query: **\n`"
-                           f"{invokepip}"
-                           "`\n**Result: **\n`"
-                           f"{pipout}"
-                           "`")
-        else:
-            await pip.edit("**Query: **\n`"
-                           f"{invokepip}"
-                           "`\n**Result: **\n`No Result Returned/False`")
-    else:
-        await pip.edit("`Use .help pip to see an example`")
+      stdout, stderr = await pipc.communicate()
+      if pipout := str(stdout.decode().strip()) + str(stderr.decode().strip()):
+         if len(pipout) > 4096:
+            await pip.edit("`Output too large, sending as file`")
+            with open("output.txt", "w+") as file:
+               file.write(pipout)
+            await pip.client.send_file(
+                pip.chat_id,
+                "output.txt",
+                reply_to=pip.id,
+            )
+            remove("output.txt")
+            return
+         await pip.edit("**Query: **\n`"
+                        f"{invokepip}"
+                        "`\n**Result: **\n`"
+                        f"{pipout}"
+                        "`")
+      else:
+         await pip.edit("**Query: **\n`"
+                        f"{invokepip}"
+                        "`\n**Result: **\n`No Result Returned/False`")
+   else:
+      await pip.edit("`Use .help pip to see an example`")
 
 
 
@@ -176,11 +171,10 @@ requirements_path = path.join(
 
 
 async def gen_chlog(repo, diff):
-    ch_log = ''
-    d_form = "%d/%m/%y"
-    for c in repo.iter_commits(diff):
-        ch_log += f'•[{c.committed_datetime.strftime(d_form)}]: {c.summary} <{c.author}>\n'
-    return ch_log
+   d_form = "%d/%m/%y"
+   return ''.join(
+       f'•[{c.committed_datetime.strftime(d_form)}]: {c.summary} <{c.author}>\n'
+       for c in repo.iter_commits(diff))
 
 
 async def update_requirements():
@@ -198,143 +192,142 @@ async def update_requirements():
 
 @javes05(outgoing=True, pattern="^\!update(?: |$)(.*)")
 async def upstream(ups):
-    "For .update command, check if the bot is up to date, update if specified"
-    await ups.edit("`Checking for updates, please wait....`")
-    conf = ups.pattern_match.group(1)
-    off_repo = UPSTREAM_REPO_URL
-    force_update = False
+   "For .update command, check if the bot is up to date, update if specified"
+   await ups.edit("`Checking for updates, please wait....`")
+   conf = ups.pattern_match.group(1)
+   off_repo = UPSTREAM_REPO_URL
+   force_update = False
 
-    try:
-        txt = "`Oops.. Updater cannot continue "
-        txt += "please add heroku apikey, name`\n\n**LOGTRACE:**\n"
-        repo = Repo()
-    except NoSuchPathError as error:
-        await ups.edit(f'{txt}\n`directory {error} is not found`')
-        repo.__del__()
-        return
-    except GitCommandError as error:
-        await ups.edit(f'{txt}\n`Early failure! {error}`')
-        repo.__del__()
-        return
-    except InvalidGitRepositoryError as error:
-        if conf != "now":
-            await ups.edit(
-                f"`Unfortunately, the directory {error} does not seem to be a git repository.\
+   try:
+      txt = ("`Oops.. Updater cannot continue " +
+             "please add heroku apikey, name`\n\n**LOGTRACE:**\n")
+      repo = Repo()
+   except NoSuchPathError as error:
+       await ups.edit(f'{txt}\n`directory {error} is not found`')
+       repo.__del__()
+       return
+   except GitCommandError as error:
+       await ups.edit(f'{txt}\n`Early failure! {error}`')
+       repo.__del__()
+       return
+   except InvalidGitRepositoryError as error:
+       if conf != "now":
+           await ups.edit(
+               f"`Unfortunately, the directory {error} does not seem to be a git repository.\
             \nBut we can fix that by force updating the ub using .update now.`"
-            )
-            return
-        repo = Repo.init()
-        origin = repo.create_remote('upstream', off_repo)
-        origin.fetch()
-        force_update = True
-        repo.create_head('master', origin.refs.master)
-        repo.heads.master.set_tracking_branch(origin.refs.master)
-        repo.heads.master.checkout(True)
+           )
+           return
+       repo = Repo.init()
+       origin = repo.create_remote('upstream', off_repo)
+       origin.fetch()
+       force_update = True
+       repo.create_head('master', origin.refs.master)
+       repo.heads.master.set_tracking_branch(origin.refs.master)
+       repo.heads.master.checkout(True)
 
-    ac_br = repo.active_branch.name
-    if ac_br != 'master':
-        await ups.edit(
-            f'**[UPDATER]:**` Looks like you are using your own custom branch ({ac_br}). '
-            'in that case, Updater is unable to identify '
-            'which branch is to be merged. '
-            'please checkout to any official branch`')
-        repo.__del__()
-        return
+   ac_br = repo.active_branch.name
+   if ac_br != 'master':
+       await ups.edit(
+           f'**[UPDATER]:**` Looks like you are using your own custom branch ({ac_br}). '
+           'in that case, Updater is unable to identify '
+           'which branch is to be merged. '
+           'please checkout to any official branch`')
+       repo.__del__()
+       return
 
-    try:
-        repo.create_remote('upstream', off_repo)
-    except BaseException:
-        pass
+   try:
+       repo.create_remote('upstream', off_repo)
+   except BaseException:
+       pass
 
-    ups_rem = repo.remote('upstream')
-    ups_rem.fetch(ac_br)
+   ups_rem = repo.remote('upstream')
+   ups_rem.fetch(ac_br)
 
-    changelog = await gen_chlog(repo, f'HEAD..upstream/{ac_br}')
+   changelog = await gen_chlog(repo, f'HEAD..upstream/{ac_br}')
 
-    if not changelog and not force_update:
-        await ups.edit(
-            f'\n`{JAVES_NNAME} is`  **up-to-date**  \n')
-        repo.__del__()
-        return
+   if not changelog and not force_update:
+       await ups.edit(
+           f'\n`{JAVES_NNAME} is`  **up-to-date**  \n')
+       repo.__del__()
+       return
 
-    if conf != "now" and not force_update:
-        changelog_str = f'**New UPDATE available for {JAVES_NNAME}\n\nCHANGELOG:**\n`{changelog}`'
-        if len(changelog_str) > 4096:
-            await ups.edit("`Changelog is too big, view the file to see it.`")
-            file = open("output.txt", "w+")
+   if conf != "now" and not force_update:
+      changelog_str = f'**New UPDATE available for {JAVES_NNAME}\n\nCHANGELOG:**\n`{changelog}`'
+      if len(changelog_str) > 4096:
+         await ups.edit("`Changelog is too big, view the file to see it.`")
+         with open("output.txt", "w+") as file:
             file.write(changelog_str)
-            file.close()
-            await ups.client.send_file(
-                ups.chat_id,
-                "output.txt",
-                reply_to=ups.id,
-            )
-            remove("output.txt")
-        else:
-            await ups.edit(changelog_str)
-        await ups.respond('`do \"!update now\" to update`')
-        return
+         await ups.client.send_file(
+             ups.chat_id,
+             "output.txt",
+             reply_to=ups.id,
+         )
+         remove("output.txt")
+      else:
+         await ups.edit(changelog_str)
+      await ups.respond('`do \"!update now\" to update`')
+      return
 
-    if force_update:
-        await ups.edit(
-            '`Force-Syncing to latest stable ub code, please wait...`')
-    else:
-        await ups.edit('`Finiding your heroku app.....`')
-    # We're in a Heroku Dyno, handle it's memez.
-    if HEROKU_APIKEY is not None:
-        import heroku3
-        heroku = heroku3.from_key(HEROKU_APIKEY)
-        heroku_app = None
-        heroku_applications = heroku.apps()
-        if not HEROKU_APPNAME:
-            await ups.edit(
-                '`Please set up the HEROKU_APPNAME variable to be able to update ub.`'
-            )
-            repo.__del__()
-            return
-        for app in heroku_applications:
-            if app.name == HEROKU_APPNAME:
-                heroku_app = app
-                break
-        if heroku_app is None:
-            await ups.edit(
-                f'{txt}\n`Invalid Heroku credentials for updating ub dyno.`'
-            )
-            repo.__del__()
-            return
-        await ups.edit(f'`[Updater]\
+   if force_update:
+       await ups.edit(
+           '`Force-Syncing to latest stable ub code, please wait...`')
+   else:
+       await ups.edit('`Finiding your heroku app.....`')
+   # We're in a Heroku Dyno, handle it's memez.
+   if HEROKU_APIKEY is not None:
+       import heroku3
+       heroku = heroku3.from_key(HEROKU_APIKEY)
+       heroku_app = None
+       heroku_applications = heroku.apps()
+       if not HEROKU_APPNAME:
+           await ups.edit(
+               '`Please set up the HEROKU_APPNAME variable to be able to update ub.`'
+           )
+           repo.__del__()
+           return
+       for app in heroku_applications:
+           if app.name == HEROKU_APPNAME:
+               heroku_app = app
+               break
+       if heroku_app is None:
+           await ups.edit(
+               f'{txt}\n`Invalid Heroku credentials for updating ub dyno.`'
+           )
+           repo.__del__()
+           return
+       await ups.edit(f'`[Updater]\
                         {JAVES_NNAME} •dyno build in progress, please wait for it to complete.\n•It may take 10 minutes `'
-                       )
-        ups_rem.fetch(ac_br)
-        repo.git.reset("--hard", "FETCH_HEAD")
-        heroku_git_url = heroku_app.git_url.replace(
-            "https://", "https://api:" + HEROKU_APIKEY + "@")
-        if "heroku" in repo.remotes:
-            remote = repo.remote("heroku")
-            remote.set_url(heroku_git_url)
-        else:
-            remote = repo.create_remote("heroku", heroku_git_url)
-        try:
-            remote.push(refspec="HEAD:refs/heads/master", force=True)
-        except GitCommandError as error:
-            await ups.edit(f'{txt}\n`Here is the error log:\n{error}`')
-            repo.__del__()
-            return
-        await ups.edit('Successfully Updated!\n'
-                       'Restarting.......')
-    else:
-        # Classic Updater, pretty straightforward.
-        try:
-            ups_rem.pull(ac_br)
-        except GitCommandError:
-            repo.git.reset("--hard", "FETCH_HEAD")
-        reqs_upgrade = await update_requirements()
-        await ups.edit('`Successfully Updated!\n'
-                       'restarting......`')
-        # Spin a new instance of bot
-        args = [sys.executable, "-m", "ub"]
-        execle(sys.executable, *args, environ)
-        return
+                      )
+       ups_rem.fetch(ac_br)
+       repo.git.reset("--hard", "FETCH_HEAD")
+       heroku_git_url = heroku_app.git_url.replace(
+           "https://", "https://api:" + HEROKU_APIKEY + "@")
+       if "heroku" in repo.remotes:
+           remote = repo.remote("heroku")
+           remote.set_url(heroku_git_url)
+       else:
+           remote = repo.create_remote("heroku", heroku_git_url)
+       try:
+           remote.push(refspec="HEAD:refs/heads/master", force=True)
+       except GitCommandError as error:
+           await ups.edit(f'{txt}\n`Here is the error log:\n{error}`')
+           repo.__del__()
+           return
+       await ups.edit('Successfully Updated!\n'
+                      'Restarting.......')
+   else:
+       # Classic Updater, pretty straightforward.
+       try:
+           ups_rem.pull(ac_br)
+       except GitCommandError:
+           repo.git.reset("--hard", "FETCH_HEAD")
+       reqs_upgrade = await update_requirements()
+       await ups.edit('`Successfully Updated!\n'
+                      'restarting......`')
+       # Spin a new instance of bot
+       args = [sys.executable, "-m", "ub"]
+       execle(sys.executable, *args, environ)
+       return
 
 
 
@@ -453,16 +446,16 @@ async def sleepybot(time):
 
 @javes05(outgoing=True, pattern="^\!repeat (.*)")
 async def repeat(rep):
-    cnt, txt = rep.pattern_match.group(1).split(' ', 1)
-    replyCount = int(cnt)
-    toBeRepeated = txt
+   cnt, txt = rep.pattern_match.group(1).split(' ', 1)
+   replyCount = int(cnt)
+   toBeRepeated = txt
 
-    replyText = toBeRepeated + "\n"
+   replyText = toBeRepeated + "\n"
 
-    for i in range(0, replyCount - 1):
-        replyText += toBeRepeated + "\n"
+   for _ in range(replyCount - 1):
+      replyText += toBeRepeated + "\n"
 
-    await rep.edit(replyText)
+   await rep.edit(replyText)
 
 
 @javes05(outgoing=True, pattern="^\!repo$")
@@ -496,107 +489,101 @@ async def raw(event):
 
 
 
-@javes.on(admin_cmd(pattern=f"sysd$", allow_sudo=True))
+@javes.on(admin_cmd(pattern='sysd$', allow_sudo=True))
 async def sysdetails(sysd):
-    """ For .sysd command, get system info using neofetch. """
-    try:
-        neo = "neofetch --stdout"
-        fetch = await asyncrunapp(
-            neo,
-            stdout=asyncPIPE,
-            stderr=asyncPIPE,
-        )
+   """ For .sysd command, get system info using neofetch. """
+   try:
+       neo = "neofetch --stdout"
+       fetch = await asyncrunapp(
+           neo,
+           stdout=asyncPIPE,
+           stderr=asyncPIPE,
+       )
 
-        stdout, stderr = await fetch.communicate()
-        result = str(stdout.decode().strip()) \
-            + str(stderr.decode().strip())
+       stdout, stderr = await fetch.communicate()
+       result = str(stdout.decode().strip()) \
+           + str(stderr.decode().strip())
 
-        await sysd.reply("`" + result + "`")
-    except FileNotFoundError:
-        await sysd.reply("`Install neofetch first !!`")
+       await sysd.reply("`" + result + "`")
+   except FileNotFoundError:
+       await sysd.reply("`Install neofetch first !!`")
 
-@javes.on(admin_cmd(pattern=f"pip(?: |$)(.*)", allow_sudo=True))
+@javes.on(admin_cmd(pattern='pip(?: |$)(.*)', allow_sudo=True))
 async def pipcheck(pip):
-    """ For .pip command, do a pip search. """
-    pipmodule = pip.pattern_match.group(1)
-    if pipmodule:
-        await pip.reply("`Searching . . .`")
-        invokepip = f"pip3 search {pipmodule}"
-        pipc = await asyncrunapp(
-            invokepip,
-            stdout=asyncPIPE,
-            stderr=asyncPIPE,
-        )
+   """ For .pip command, do a pip search. """
+   if pipmodule := pip.pattern_match.group(1):
+      await pip.reply("`Searching . . .`")
+      invokepip = f"pip3 search {pipmodule}"
+      pipc = await asyncrunapp(
+          invokepip,
+          stdout=asyncPIPE,
+          stderr=asyncPIPE,
+      )
 
-        stdout, stderr = await pipc.communicate()
-        pipout = str(stdout.decode().strip()) \
-            + str(stderr.decode().strip())
-
-        if pipout:
-            if len(pipout) > 4096:
-                await pip.reply("`Output too large, sending as file`")
-                file = open("output.txt", "w+")
-                file.write(pipout)
-                file.close()
-                await pip.client.send_file(
-                    pip.chat_id,
-                    "output.txt",
-                    reply_to=pip.id,
-                )
-                remove("output.txt")
-                return
-            await pip.reply("**Query: **\n`"
-                           f"{invokepip}"
-                           "`\n**Result: **\n`"
-                           f"{pipout}"
-                           "`")
-        else:
-            await pip.reply("**Query: **\n`"
-                           f"{invokepip}"
-                           "`\n**Result: **\n`No Result Returned/False`")
-    else:
-        await pip.reply("`Use .help pip to see an example`")
-
-@javes.on(admin_cmd(pattern=f"sleep( [0-9]+)?$", allow_sudo=True))
-async def sleepybot(time):
-    """ For .sleep command, let the ub snooze for a few second. """
-    message = time.text
-    if " " not in time.pattern_match.group(1):
-        await time.reply("Syntax: `.sleep [seconds]`")
-    else:
-        counter = int(time.pattern_match.group(1))
-        await time.reply("`sleeping....`")
-        await sleep(2)
-        if BOTLOG:
-            await time.client.send_message(
-                BOTLOG_CHATID,
-                "You put the bot to sleep for " + str(counter) + " seconds",
+      stdout, stderr = await pipc.communicate()
+      if pipout := str(stdout.decode().strip()) + str(stderr.decode().strip()):
+         if len(pipout) > 4096:
+            await pip.reply("`Output too large, sending as file`")
+            with open("output.txt", "w+") as file:
+               file.write(pipout)
+            await pip.client.send_file(
+                pip.chat_id,
+                "output.txt",
+                reply_to=pip.id,
             )
-        await sleep(counter)
-        await time.reply("`OK, I'm awake now.`")
+            remove("output.txt")
+            return
+         await pip.reply("**Query: **\n`"
+                        f"{invokepip}"
+                        "`\n**Result: **\n`"
+                        f"{pipout}"
+                        "`")
+      else:
+         await pip.reply("**Query: **\n`"
+                        f"{invokepip}"
+                        "`\n**Result: **\n`No Result Returned/False`")
+   else:
+      await pip.reply("`Use .help pip to see an example`")
+
+@javes.on(admin_cmd(pattern='sleep( [0-9]+)?$', allow_sudo=True))
+async def sleepybot(time):
+   """ For .sleep command, let the ub snooze for a few second. """
+   message = time.text
+   if " " not in time.pattern_match.group(1):
+       await time.reply("Syntax: `.sleep [seconds]`")
+   else:
+       counter = int(time.pattern_match.group(1))
+       await time.reply("`sleeping....`")
+       await sleep(2)
+       if BOTLOG:
+           await time.client.send_message(
+               BOTLOG_CHATID,
+               "You put the bot to sleep for " + str(counter) + " seconds",
+           )
+       await sleep(counter)
+       await time.reply("`OK, I'm awake now.`")
 
 
-@javes.on(admin_cmd(pattern=f"repeat (.*)", allow_sudo=True))
+@javes.on(admin_cmd(pattern='repeat (.*)', allow_sudo=True))
 async def repeat(rep):
-    cnt, txt = rep.pattern_match.group(1).split(' ', 1)
-    replyCount = int(cnt)
-    toBeRepeated = txt
+   cnt, txt = rep.pattern_match.group(1).split(' ', 1)
+   replyCount = int(cnt)
+   toBeRepeated = txt
 
-    replyText = toBeRepeated + "\n"
+   replyText = toBeRepeated + "\n"
 
-    for i in range(0, replyCount - 1):
-        replyText += toBeRepeated + "\n"
+   for _ in range(replyCount - 1):
+      replyText += toBeRepeated + "\n"
 
-    await rep.reply(replyText)
-
-
+   await rep.reply(replyText)
 
 
-@javes.on(admin_cmd(pattern=f"raw$", allow_sudo=True))
+
+
+@javes.on(admin_cmd(pattern='raw$', allow_sudo=True))
 async def repo_is_here(wannasee):
-    """ For .repo command, just returns the repo URL. """
-    await wannasee.reply(
-        f"`Privacy Error\nSorry this command not permitted`")
+   """ For .repo command, just returns the repo URL. """
+   await wannasee.reply('`Privacy Error\nSorry this command not permitted`')
 
 
 
@@ -605,137 +592,131 @@ async def repo_is_here(wannasee):
     
 
 
-@javes.on(admin_cmd(pattern=f"random", allow_sudo=True))
+@javes.on(admin_cmd(pattern='random', allow_sudo=True))
 async def randomise(items):
-    """ For .random command, get a random item from the list of items. """
-    itemo = (items.text[8:]).split()
-    if len(itemo) < 2:
-        await items.reply(
-            "`2 or more items are required! `"
-        )
-        return
-    index = randint(1, len(itemo) - 1)
-    await items.reply("**Query: **\n`" + items.text[8:] + "`\n**Output: **\n`" +
-                     itemo[index] + "`")
+   """ For .random command, get a random item from the list of items. """
+   itemo = (items.text[8:]).split()
+   if len(itemo) < 2:
+       await items.reply(
+           "`2 or more items are required! `"
+       )
+       return
+   index = randint(1, len(itemo) - 1)
+   await items.reply("**Query: **\n`" + items.text[8:] + "`\n**Output: **\n`" +
+                    itemo[index] + "`")
                      
-@javes.on(admin_cmd(pattern=f"uploadas(stream|vn|all) (.*)", allow_sudo=True))
+@javes.on(admin_cmd(pattern='uploadas(stream|vn|all) (.*)', allow_sudo=True))
 async def uploadas(uas_event):
-    """ For .uploadas command, allows you to specify some arguments for upload. """
-    await uas_event.reply("Processing ...")
-    type_of_upload = uas_event.pattern_match.group(1)
-    supports_streaming = False
-    round_message = False
-    spam_big_messages = False
-    if type_of_upload == "stream":
-        supports_streaming = True
-    if type_of_upload == "vn":
-        round_message = True
-    if type_of_upload == "all":
-        spam_big_messages = True
-    input_str = uas_event.pattern_match.group(2)
-    thumb = None
-    file_name = None
-    if "|" in input_str:
-        file_name, thumb = input_str.split("|")
-        file_name = file_name.strip()
-        thumb = thumb.strip()
-    else:
-        file_name = input_str
-        thumb_path = "a_random_f_file_name" + ".jpg"
-        thumb = get_video_thumb(file_name, output=thumb_path)
-    if os.path.exists(file_name):
-        metadata = extractMetadata(createParser(file_name))
-        duration = 0
-        width = 0
-        height = 0
-        if metadata.has("duration"):
-            duration = metadata.get("duration").seconds
-        if metadata.has("width"):
-            width = metadata.get("width")
-        if metadata.has("height"):
-            height = metadata.get("height")
-        try:
-            if supports_streaming:
-                c_time = time.time()
-                await uas_event.client.send_file(
-                    uas_event.chat_id,
-                    file_name,
-                    thumb=thumb,
-                    caption=input_str,
-                    force_document=False,
-                    allow_cache=False,
-                    reply_to=uas_event.message.id,
-                    attributes=[
-                        DocumentAttributeVideo(
-                            duration=duration,
-                            w=width,
-                            h=height,
-                            round_message=False,
-                            supports_streaming=True,
-                        )
-                    ],
-                    progress_callback=lambda d, t: asyncio.get_event_loop(
-                    ).create_task(
-                        progress(d, t, uas_event, c_time, "Uploading...",
-                                 file_name)))
-            elif round_message:
-                c_time = time.time()
-                await uas_event.client.send_file(
-                    uas_event.chat_id,
-                    file_name,
-                    thumb=thumb,
-                    allow_cache=False,
-                    reply_to=uas_event.message.id,
-                    video_note=True,
-                    attributes=[
-                        DocumentAttributeVideo(
-                            duration=0,
-                            w=1,
-                            h=1,
-                            round_message=True,
-                            supports_streaming=True,
-                        )
-                    ],
-                    progress_callback=lambda d, t: asyncio.get_event_loop(
-                    ).create_task(
-                        progress(d, t, uas_event, c_time, "Uploading...",
-                                 file_name)))
-            elif spam_big_messages:
-                await uas_event.reply("TBD: Not (yet) Implemented")
-                return
-            os.remove(thumb)
-            await uas_event.reply("Uploaded successfully !!")
-        except FileNotFoundError as err:
-            await uas_event.reply(str(err))
-    else:
-        await uas_event.reply("404: File Not Found")
+   """ For .uploadas command, allows you to specify some arguments for upload. """
+   await uas_event.reply("Processing ...")
+   type_of_upload = uas_event.pattern_match.group(1)
+   supports_streaming = False
+   round_message = False
+   spam_big_messages = False
+   if type_of_upload == "all":
+      spam_big_messages = True
+   elif type_of_upload == "stream":
+      supports_streaming = True
+   elif type_of_upload == "vn":
+      round_message = True
+   input_str = uas_event.pattern_match.group(2)
+   thumb = None
+   file_name = None
+   if "|" in input_str:
+       file_name, thumb = input_str.split("|")
+       file_name = file_name.strip()
+       thumb = thumb.strip()
+   else:
+       file_name = input_str
+       thumb_path = "a_random_f_file_name" + ".jpg"
+       thumb = get_video_thumb(file_name, output=thumb_path)
+   if os.path.exists(file_name):
+      metadata = extractMetadata(createParser(file_name))
+      duration = metadata.get("duration").seconds if metadata.has("duration") else 0
+      width = metadata.get("width") if metadata.has("width") else 0
+      height = metadata.get("height") if metadata.has("height") else 0
+      try:
+          if supports_streaming:
+              c_time = time.time()
+              await uas_event.client.send_file(
+                  uas_event.chat_id,
+                  file_name,
+                  thumb=thumb,
+                  caption=input_str,
+                  force_document=False,
+                  allow_cache=False,
+                  reply_to=uas_event.message.id,
+                  attributes=[
+                      DocumentAttributeVideo(
+                          duration=duration,
+                          w=width,
+                          h=height,
+                          round_message=False,
+                          supports_streaming=True,
+                      )
+                  ],
+                  progress_callback=lambda d, t: asyncio.get_event_loop(
+                  ).create_task(
+                      progress(d, t, uas_event, c_time, "Uploading...",
+                               file_name)))
+          elif round_message:
+              c_time = time.time()
+              await uas_event.client.send_file(
+                  uas_event.chat_id,
+                  file_name,
+                  thumb=thumb,
+                  allow_cache=False,
+                  reply_to=uas_event.message.id,
+                  video_note=True,
+                  attributes=[
+                      DocumentAttributeVideo(
+                          duration=0,
+                          w=1,
+                          h=1,
+                          round_message=True,
+                          supports_streaming=True,
+                      )
+                  ],
+                  progress_callback=lambda d, t: asyncio.get_event_loop(
+                  ).create_task(
+                      progress(d, t, uas_event, c_time, "Uploading...",
+                               file_name)))
+          elif spam_big_messages:
+              await uas_event.reply("TBD: Not (yet) Implemented")
+              return
+          os.remove(thumb)
+          await uas_event.reply("Uploaded successfully !!")
+      except FileNotFoundError as err:
+          await uas_event.reply(str(err))
+   else:
+      await uas_event.reply("404: File Not Found")
 
 
 
     
 
-@javes.on(admin_cmd(pattern=f"upload (.*)", allow_sudo=True))
+@javes.on(admin_cmd(pattern='upload (.*)', allow_sudo=True))
 async def upload(u_event):
-    """ For .upload command, allows you to upload a file from the ub's server """
-    await u_event.reply("Processing ...")
-    input_str = u_event.pattern_match.group(1)
-    if input_str in ("ub.session", "config.env"):
-        await u_event.reply("`That's a dangerous operation! Not Permitted!`")
-        return
-    if os.path.exists(input_str):
-        c_time = time.time()
-        await u_event.client.send_file(
-            u_event.chat_id,
-            input_str,
-            force_document=True,
-            allow_cache=False,
-            reply_to=u_event.message.id,
-            progress_callback=lambda d, t: asyncio.get_event_loop(
-            ).create_task(
-                progress(d, t, u_event, c_time, "Uploading...", input_str)))
-        await u_event.reply("Uploaded successfully !!")
-    else:
-        await u_event.reply("404: File Not Found")
+   """ For .upload command, allows you to upload a file from the ub's server """
+   await u_event.reply("Processing ...")
+   input_str = u_event.pattern_match.group(1)
+   if input_str in ("ub.session", "config.env"):
+       await u_event.reply("`That's a dangerous operation! Not Permitted!`")
+       return
+   if os.path.exists(input_str):
+       c_time = time.time()
+       await u_event.client.send_file(
+           u_event.chat_id,
+           input_str,
+           force_document=True,
+           allow_cache=False,
+           reply_to=u_event.message.id,
+           progress_callback=lambda d, t: asyncio.get_event_loop(
+           ).create_task(
+               progress(d, t, u_event, c_time, "Uploading...", input_str)))
+       await u_event.reply("Uploaded successfully !!")
+   else:
+       await u_event.reply("404: File Not Found")
 
 
 def get_video_thumb(file, output=None, width=90):
@@ -791,193 +772,187 @@ def extract_w_h(file):
 
 
 
-@javes.on(admin_cmd(pattern=f"uploadir (.*)", allow_sudo=True))
+@javes.on(admin_cmd(pattern='uploadir (.*)', allow_sudo=True))
 async def uploadir(udir_event):
-    """ For .uploadir command, allows you to upload everything from a folder in the server"""
-    input_str = udir_event.pattern_match.group(1)
-    if os.path.exists(input_str):
-        await udir_event.reply("Processing ...")
-        lst_of_files = []
-        for r, d, f in os.walk(input_str):
-            for file in f:
-                lst_of_files.append(os.path.join(r, file))
-            for file in d:
-                lst_of_files.append(os.path.join(r, file))
-        LOGS.info(lst_of_files)
-        uploaded = 0
-        await udir_event.reply(
-            "Found {} files. Uploading will start soon. Please wait!".format(
-                len(lst_of_files)))
-        for single_file in lst_of_files:
-            if os.path.exists(single_file):
-                # https://stackoverflow.com/a/678242/4723940
-                caption_rts = os.path.basename(single_file)
-                c_time = time.time()
-                if not caption_rts.lower().endswith(".mp4"):
-                    await udir_event.client.send_file(
-                        udir_event.chat_id,
-                        single_file,
-                        caption=caption_rts,
-                        force_document=False,
-                        allow_cache=False,
-                        reply_to=udir_event.message.id,
-                        progress_callback=lambda d, t: asyncio.get_event_loop(
-                        ).create_task(
-                            progress(d, t, udir_event, c_time, "Uploading...",
-                                     single_file)))
-                else:
-                    thumb_image = os.path.join(input_str, "thumb.jpg")
-                    c_time = time.time()
-                    metadata = extractMetadata(createParser(single_file))
-                    duration = 0
-                    width = 0
-                    height = 0
-                    if metadata.has("duration"):
-                        duration = metadata.get("duration").seconds
-                    if metadata.has("width"):
-                        width = metadata.get("width")
-                    if metadata.has("height"):
-                        height = metadata.get("height")
-                    await udir_event.client.send_file(
-                        udir_event.chat_id,
-                        single_file,
-                        caption=caption_rts,
-                        thumb=thumb_image,
-                        force_document=False,
-                        allow_cache=False,
-                        reply_to=udir_event.message.id,
-                        attributes=[
-                            DocumentAttributeVideo(
-                                duration=duration,
-                                w=width,
-                                h=height,
-                                round_message=False,
-                                supports_streaming=True,
-                            )
-                        ],
-                        progress_callback=lambda d, t: asyncio.get_event_loop(
-                        ).create_task(
-                            progress(d, t, udir_event, c_time, "Uploading...",
-                                     single_file)))
-                os.remove(single_file)
-                uploaded = uploaded + 1
-        await udir_event.reply(
-            "Uploaded {} files successfully !!".format(uploaded))
-    else:
-        await udir_event.reply("404: Directory Not Found")
+   """ For .uploadir command, allows you to upload everything from a folder in the server"""
+   input_str = udir_event.pattern_match.group(1)
+   if os.path.exists(input_str):
+      await udir_event.reply("Processing ...")
+      lst_of_files = []
+      for r, d, f in os.walk(input_str):
+          for file in f:
+              lst_of_files.append(os.path.join(r, file))
+          for file in d:
+              lst_of_files.append(os.path.join(r, file))
+      LOGS.info(lst_of_files)
+      uploaded = 0
+      await udir_event.reply(
+          "Found {} files. Uploading will start soon. Please wait!".format(
+              len(lst_of_files)))
+      for single_file in lst_of_files:
+         if os.path.exists(single_file):
+            # https://stackoverflow.com/a/678242/4723940
+            caption_rts = os.path.basename(single_file)
+            c_time = time.time()
+            if not caption_rts.lower().endswith(".mp4"):
+               await udir_event.client.send_file(
+                   udir_event.chat_id,
+                   single_file,
+                   caption=caption_rts,
+                   force_document=False,
+                   allow_cache=False,
+                   reply_to=udir_event.message.id,
+                   progress_callback=lambda d, t: asyncio.get_event_loop(
+                   ).create_task(
+                       progress(d, t, udir_event, c_time, "Uploading...",
+                                single_file)))
+            else:
+               thumb_image = os.path.join(input_str, "thumb.jpg")
+               c_time = time.time()
+               metadata = extractMetadata(createParser(single_file))
+               duration = metadata.get("duration").seconds if metadata.has("duration") else 0
+               width = metadata.get("width") if metadata.has("width") else 0
+               height = metadata.get("height") if metadata.has("height") else 0
+               await udir_event.client.send_file(
+                   udir_event.chat_id,
+                   single_file,
+                   caption=caption_rts,
+                   thumb=thumb_image,
+                   force_document=False,
+                   allow_cache=False,
+                   reply_to=udir_event.message.id,
+                   attributes=[
+                       DocumentAttributeVideo(
+                           duration=duration,
+                           w=width,
+                           h=height,
+                           round_message=False,
+                           supports_streaming=True,
+                       )
+                   ],
+                   progress_callback=lambda d, t: asyncio.get_event_loop(
+                   ).create_task(
+                       progress(d, t, udir_event, c_time, "Uploading...",
+                                single_file)))
+            os.remove(single_file)
+            uploaded += 1
+      await udir_event.reply(
+          "Uploaded {} files successfully !!".format(uploaded))
+   else:
+      await udir_event.reply("404: Directory Not Found")
 
 
 
 
 
-@javes.on(admin_cmd(pattern=f"download(?: |$)(.*)", allow_sudo=True))
+@javes.on(admin_cmd(pattern='download(?: |$)(.*)', allow_sudo=True))
 async def download(target_file):
-    """ For .download command, download files to the ub's server. """
-    await target_file.reply("Processing ...")
-    input_str = target_file.pattern_match.group(1)
-    if not os.path.isdir(TEMP_DOWNLOAD_DIRECTORY):
-        os.makedirs(TEMP_DOWNLOAD_DIRECTORY)
-    if "|" in input_str:
-        url, file_name = input_str.split("|")
-        url = url.strip()
-        # https://stackoverflow.com/a/761825/4723940
-        file_name = file_name.strip()
-        head, tail = os.path.split(file_name)
-        if head:
-            if not os.path.isdir(os.path.join(TEMP_DOWNLOAD_DIRECTORY, head)):
-                os.makedirs(os.path.join(TEMP_DOWNLOAD_DIRECTORY, head))
-                file_name = os.path.join(head, tail)
-        downloaded_file_name = TEMP_DOWNLOAD_DIRECTORY + "" + file_name
-        downloader = SmartDL(url, downloaded_file_name, progress_bar=False)
-        downloader.start(blocking=False)
-        c_time = time.time()
-        display_message = None
-        while not downloader.isFinished():
-            status = downloader.get_status().capitalize()
-            total_length = downloader.filesize if downloader.filesize else None
-            downloaded = downloader.get_dl_size()
-            now = time.time()
-            diff = now - c_time
-            percentage = downloader.get_progress() * 100
-            speed = downloader.get_speed()
-            elapsed_time = round(diff) * 1000
-            progress_str = "[{0}{1}] {2}%".format(
-                ''.join(["?" for i in range(math.floor(percentage / 10))]),
-                ''.join(["?"
-                         for i in range(10 - math.floor(percentage / 10))]),
-                round(percentage, 2))
-            estimated_total_time = downloader.get_eta(human=True)
-            try:
-                current_message = f"{status}..\
+   """ For .download command, download files to the ub's server. """
+   await target_file.reply("Processing ...")
+   input_str = target_file.pattern_match.group(1)
+   if not os.path.isdir(TEMP_DOWNLOAD_DIRECTORY):
+       os.makedirs(TEMP_DOWNLOAD_DIRECTORY)
+   if "|" in input_str:
+      url, file_name = input_str.split("|")
+      url = url.strip()
+      # https://stackoverflow.com/a/761825/4723940
+      file_name = file_name.strip()
+      head, tail = os.path.split(file_name)
+      if head and not os.path.isdir(
+          os.path.join(TEMP_DOWNLOAD_DIRECTORY, head)):
+         os.makedirs(os.path.join(TEMP_DOWNLOAD_DIRECTORY, head))
+         file_name = os.path.join(head, tail)
+      downloaded_file_name = TEMP_DOWNLOAD_DIRECTORY + "" + file_name
+      downloader = SmartDL(url, downloaded_file_name, progress_bar=False)
+      downloader.start(blocking=False)
+      c_time = time.time()
+      display_message = None
+      while not downloader.isFinished():
+         status = downloader.get_status().capitalize()
+         total_length = downloader.filesize or None
+         downloaded = downloader.get_dl_size()
+         now = time.time()
+         diff = now - c_time
+         percentage = downloader.get_progress() * 100
+         speed = downloader.get_speed()
+         elapsed_time = round(diff) * 1000
+         progress_str = "[{0}{1}] {2}%".format(
+             ''.join(["?" for _ in range(math.floor(percentage / 10))]),
+             ''.join(["?" for _ in range(10 - math.floor(percentage / 10))]),
+             round(percentage, 2),
+         )
+         estimated_total_time = downloader.get_eta(human=True)
+         try:
+             current_message = f"{status}..\
                 \nURL: {url}\
                 \nFile Name: {file_name}\
                 \n{progress_str}\
                 \n{humanbytes(downloaded)} of {humanbytes(total_length)}\
                 \nETA: {estimated_total_time}"
 
-                if round(diff %
-                         10.00) == 0 and current_message != display_message:
-                    await target_file.reply(current_message)
-                    display_message = current_message
-            except Exception as e:
-                LOGS.info(str(e))
-        if downloader.isSuccessful():
-            await target_file.reply("Downloaded to `{}` successfully !!".format(
-                downloaded_file_name))
-        else:
-            await target_file.reply("Incorrect URL\n{}".format(url))
-    elif target_file.reply_to_msg_id:
-        try:
-            c_time = time.time()
-            downloaded_file_name = await target_file.client.download_media(
-                await target_file.get_reply_message(),
-                TEMP_DOWNLOAD_DIRECTORY,
-                progress_callback=lambda d, t: asyncio.get_event_loop(
-                ).create_task(
-                    progress(d, t, target_file, c_time, "Downloading...")))
-        except Exception as e:  # pylint:disable=C0103,W0703
-            await target_file.reply(str(e))
-        else:
-            await target_file.reply("Downloaded to `{}` successfully !!".format(
-                downloaded_file_name))
-    else:
-        await target_file.reply(
-            "Reply to a message to download to my local server.")
+             if round(diff %
+                      10.00) == 0 and current_message != display_message:
+                 await target_file.reply(current_message)
+                 display_message = current_message
+         except Exception as e:
+             LOGS.info(str(e))
+      if downloader.isSuccessful():
+          await target_file.reply("Downloaded to `{}` successfully !!".format(
+              downloaded_file_name))
+      else:
+          await target_file.reply("Incorrect URL\n{}".format(url))
+   elif target_file.reply_to_msg_id:
+       try:
+           c_time = time.time()
+           downloaded_file_name = await target_file.client.download_media(
+               await target_file.get_reply_message(),
+               TEMP_DOWNLOAD_DIRECTORY,
+               progress_callback=lambda d, t: asyncio.get_event_loop(
+               ).create_task(
+                   progress(d, t, target_file, c_time, "Downloading...")))
+       except Exception as e:  # pylint:disable=C0103,W0703
+           await target_file.reply(str(e))
+       else:
+           await target_file.reply("Downloaded to `{}` successfully !!".format(
+               downloaded_file_name))
+   else:
+      await target_file.reply(
+          "Reply to a message to download to my local server.")
 
-@javes.on(admin_cmd(pattern=f"ping$", allow_sudo=True))
+@javes.on(admin_cmd(pattern='ping$', allow_sudo=True))
 async def pingme(pong):
-    """ For .ping command, ping the ub from any chat.  """
-    start = datetime.now()
-    #await pong.reply("`Pong!`")
-    end = datetime.now()
-    duration = (end - start).microseconds / 10000
-    await pong.reply("`Pong!\n%sms`" % (duration))
+   """ For .ping command, ping the ub from any chat.  """
+   start = datetime.now()
+   #await pong.reply("`Pong!`")
+   end = datetime.now()
+   duration = (end - start).microseconds / 10000
+   await pong.reply("`Pong!\n%sms`" % (duration))
 
 
-@javes.on(admin_cmd(pattern=f"speed$", allow_sudo=True))
+@javes.on(admin_cmd(pattern='speed$', allow_sudo=True))
 async def speedtst(spd):
-    """ For .speed command, use SpeedTest to check server speeds. """
-    await spd.reply("`Running speed test . . .`")
-    test = Speedtest()
+   """ For .speed command, use SpeedTest to check server speeds. """
+   await spd.reply("`Running speed test . . .`")
+   test = Speedtest()
 
-    test.get_best_server()
-    test.download()
-    test.upload()
-    test.results.share()
-    result = test.results.dict()
+   test.get_best_server()
+   test.download()
+   test.upload()
+   test.results.share()
+   result = test.results.dict()
 
-    await spd.reply("`"
-                   "Started at "
-                   f"{result['timestamp']} \n\n"
-                   "Download "
-                   f"{speed_convert(result['download'])} \n"
-                   "Upload "
-                   f"{speed_convert(result['upload'])} \n"
-                   "Ping "
-                   f"{result['ping']} \n"
-                   "ISP "
-                   f"{result['client']['isp']}"
-                   "`")
+   await spd.reply("`"
+                  "Started at "
+                  f"{result['timestamp']} \n\n"
+                  "Download "
+                  f"{speed_convert(result['download'])} \n"
+                  "Upload "
+                  f"{speed_convert(result['upload'])} \n"
+                  "Ping "
+                  f"{result['ping']} \n"
+                  "ISP "
+                  f"{result['client']['isp']}"
+                  "`")
 
 
 def speed_convert(size):
@@ -994,144 +969,143 @@ def speed_convert(size):
 
 
 
-@javes.on(admin_cmd(pattern=f"update(?: |$)(.*)", allow_sudo=True))
+@javes.on(admin_cmd(pattern='update(?: |$)(.*)', allow_sudo=True))
 async def upstream(ups):
-    "For .update command, check if the bot is up to date, update if specified"
-    await ups.reply("`Checking for updates, please wait....`")
-    conf = ups.pattern_match.group(1)
-    off_repo = UPSTREAM_REPO_URL
-    force_update = False
+   "For .update command, check if the bot is up to date, update if specified"
+   await ups.reply("`Checking for updates, please wait....`")
+   conf = ups.pattern_match.group(1)
+   off_repo = UPSTREAM_REPO_URL
+   force_update = False
 
-    try:
-        txt = "`Oops.. Updater cannot continue "
-        txt += "please add heroku apikey, name`\n\n**LOGTRACE:**\n"
-        repo = Repo()
-    except NoSuchPathError as error:
-        await ups.reply(f'{txt}\n`directory {error} is not found`')
-        repo.__del__()
-        return
-    except GitCommandError as error:
-        await ups.reply(f'{txt}\n`Early failure! {error}`')
-        repo.__del__()
-        return
-    except InvalidGitRepositoryError as error:
-        if conf != "now":
-            await ups.reply(
-                f"`Unfortunately, the directory {error} does not seem to be a git repository.\
+   try:
+      txt = ("`Oops.. Updater cannot continue " +
+             "please add heroku apikey, name`\n\n**LOGTRACE:**\n")
+      repo = Repo()
+   except NoSuchPathError as error:
+       await ups.reply(f'{txt}\n`directory {error} is not found`')
+       repo.__del__()
+       return
+   except GitCommandError as error:
+       await ups.reply(f'{txt}\n`Early failure! {error}`')
+       repo.__del__()
+       return
+   except InvalidGitRepositoryError as error:
+       if conf != "now":
+           await ups.reply(
+               f"`Unfortunately, the directory {error} does not seem to be a git repository.\
             \nBut we can fix that by force updating the ub using .update now.`"
-            )
-            return
-        repo = Repo.init()
-        origin = repo.create_remote('upstream', off_repo)
-        origin.fetch()
-        force_update = True
-        repo.create_head('master', origin.refs.master)
-        repo.heads.master.set_tracking_branch(origin.refs.master)
-        repo.heads.master.checkout(True)
+           )
+           return
+       repo = Repo.init()
+       origin = repo.create_remote('upstream', off_repo)
+       origin.fetch()
+       force_update = True
+       repo.create_head('master', origin.refs.master)
+       repo.heads.master.set_tracking_branch(origin.refs.master)
+       repo.heads.master.checkout(True)
 
-    ac_br = repo.active_branch.name
-    if ac_br != 'master':
-        await ups.reply(
-            f'**[UPDATER]:**` Looks like you are using your own custom branch ({ac_br}). '
-            'in that case, Updater is unable to identify '
-            'which branch is to be merged. '
-            'please checkout to any official branch`')
-        repo.__del__()
-        return
+   ac_br = repo.active_branch.name
+   if ac_br != 'master':
+       await ups.reply(
+           f'**[UPDATER]:**` Looks like you are using your own custom branch ({ac_br}). '
+           'in that case, Updater is unable to identify '
+           'which branch is to be merged. '
+           'please checkout to any official branch`')
+       repo.__del__()
+       return
 
-    try:
-        repo.create_remote('upstream', off_repo)
-    except BaseException:
-        pass
+   try:
+       repo.create_remote('upstream', off_repo)
+   except BaseException:
+       pass
 
-    ups_rem = repo.remote('upstream')
-    ups_rem.fetch(ac_br)
+   ups_rem = repo.remote('upstream')
+   ups_rem.fetch(ac_br)
 
-    changelog = await gen_chlog(repo, f'HEAD..upstream/{ac_br}')
+   changelog = await gen_chlog(repo, f'HEAD..upstream/{ac_br}')
 
-    if not changelog and not force_update:
-        await ups.reply(
-            f'\n`{JAVES_NNAME} is`  **up-to-date**  \n')
-        repo.__del__()
-        return
+   if not changelog and not force_update:
+       await ups.reply(
+           f'\n`{JAVES_NNAME} is`  **up-to-date**  \n')
+       repo.__del__()
+       return
 
-    if conf != "now" and not force_update:
-        changelog_str = f'**New UPDATE available for {JAVES_NNAME}\n\nCHANGELOG:**\n`{changelog}`'
-        if len(changelog_str) > 4096:
-            await ups.reply("`Changelog is too big, view the file to see it.`")
-            file = open("output.txt", "w+")
+   if conf != "now" and not force_update:
+      changelog_str = f'**New UPDATE available for {JAVES_NNAME}\n\nCHANGELOG:**\n`{changelog}`'
+      if len(changelog_str) > 4096:
+         await ups.reply("`Changelog is too big, view the file to see it.`")
+         with open("output.txt", "w+") as file:
             file.write(changelog_str)
-            file.close()
-            await ups.client.send_file(
-                ups.chat_id,
-                "output.txt",
-                reply_to=ups.id,
-            )
-            remove("output.txt")
-        else:
-            await ups.reply(changelog_str)
-        await ups.respond('`do \"!update now\" to update`')
-        return
+         await ups.client.send_file(
+             ups.chat_id,
+             "output.txt",
+             reply_to=ups.id,
+         )
+         remove("output.txt")
+      else:
+         await ups.reply(changelog_str)
+      await ups.respond('`do \"!update now\" to update`')
+      return
 
-    if force_update:
-        await ups.reply(
-            '`Force-Syncing to latest stable ub code, please wait...`')
-    else:
-        await ups.reply('`Finiding your heroku app.....`')
-    # We're in a Heroku Dyno, handle it's memez.
-    if HEROKU_APIKEY is not None:
-        import heroku3
-        heroku = heroku3.from_key(HEROKU_APIKEY)
-        heroku_app = None
-        heroku_applications = heroku.apps()
-        if not HEROKU_APPNAME:
-            await ups.reply(
-                '`Please set up the HEROKU_APPNAME variable to be able to update ub.`'
-            )
-            repo.__del__()
-            return
-        for app in heroku_applications:
-            if app.name == HEROKU_APPNAME:
-                heroku_app = app
-                break
-        if heroku_app is None:
-            await ups.reply(
-                f'{txt}\n`Invalid Heroku credentials for updating ub dyno.`'
-            )
-            repo.__del__()
-            return
-        await ups.reply(f'`[Updater]\
+   if force_update:
+       await ups.reply(
+           '`Force-Syncing to latest stable ub code, please wait...`')
+   else:
+       await ups.reply('`Finiding your heroku app.....`')
+   # We're in a Heroku Dyno, handle it's memez.
+   if HEROKU_APIKEY is not None:
+       import heroku3
+       heroku = heroku3.from_key(HEROKU_APIKEY)
+       heroku_app = None
+       heroku_applications = heroku.apps()
+       if not HEROKU_APPNAME:
+           await ups.reply(
+               '`Please set up the HEROKU_APPNAME variable to be able to update ub.`'
+           )
+           repo.__del__()
+           return
+       for app in heroku_applications:
+           if app.name == HEROKU_APPNAME:
+               heroku_app = app
+               break
+       if heroku_app is None:
+           await ups.reply(
+               f'{txt}\n`Invalid Heroku credentials for updating ub dyno.`'
+           )
+           repo.__del__()
+           return
+       await ups.reply(f'`[Updater]\
                         {JAVES_NNAME} dyno build in progress, please wait for it to complete.\nIt may take 7 minutes `'
-                       )
-        ups_rem.fetch(ac_br)
-        repo.git.reset("--hard", "FETCH_HEAD")
-        heroku_git_url = heroku_app.git_url.replace(
-            "https://", "https://api:" + HEROKU_APIKEY + "@")
-        if "heroku" in repo.remotes:
-            remote = repo.remote("heroku")
-            remote.set_url(heroku_git_url)
-        else:
-            remote = repo.create_remote("heroku", heroku_git_url)
-        try:
-            remote.push(refspec="HEAD:refs/heads/master", force=True)
-        except GitCommandError as error:
-            await ups.reply(f'{txt}\n`Here is the error log:\n{error}`')
-            repo.__del__()
-            return
-        await ups.reply('Successfully Updated!\n'
-                       'Restarting.......')
-    else:
-        # Classic Updater, pretty straightforward.
-        try:
-            ups_rem.pull(ac_br)
-        except GitCommandError:
-            repo.git.reset("--hard", "FETCH_HEAD")
-        reqs_upgrade = await update_requirements()
-        await ups.reply('`Successfully Updated!\n'
-                       'restarting......`')
-        # Spin a new instance of bot
-        args = [sys.executable, "-m", "ub"]
-        execle(sys.executable, *args, environ)
-        return
+                      )
+       ups_rem.fetch(ac_br)
+       repo.git.reset("--hard", "FETCH_HEAD")
+       heroku_git_url = heroku_app.git_url.replace(
+           "https://", "https://api:" + HEROKU_APIKEY + "@")
+       if "heroku" in repo.remotes:
+           remote = repo.remote("heroku")
+           remote.set_url(heroku_git_url)
+       else:
+           remote = repo.create_remote("heroku", heroku_git_url)
+       try:
+           remote.push(refspec="HEAD:refs/heads/master", force=True)
+       except GitCommandError as error:
+           await ups.reply(f'{txt}\n`Here is the error log:\n{error}`')
+           repo.__del__()
+           return
+       await ups.reply('Successfully Updated!\n'
+                      'Restarting.......')
+   else:
+       # Classic Updater, pretty straightforward.
+       try:
+           ups_rem.pull(ac_br)
+       except GitCommandError:
+           repo.git.reset("--hard", "FETCH_HEAD")
+       reqs_upgrade = await update_requirements()
+       await ups.reply('`Successfully Updated!\n'
+                      'restarting......`')
+       # Spin a new instance of bot
+       args = [sys.executable, "-m", "ub"]
+       execle(sys.executable, *args, environ)
+       return
 
 
