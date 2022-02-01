@@ -54,30 +54,14 @@ async def _(event):
             user_bio = user_bio '''
     #Now Complex code may fale se me made some new simple code #Sh1vam
     first_name = replied_user.user.first_name
-    
-    if first_name == None:
-        first_name=" "
 
-    else :
-        first_name=first_name
-
-        
+    first_name = " " if first_name is None else first_name
     last_name = replied_user.user.last_name
-    
-    if last_name== None:
-        last_name=" "
 
-    else :
-        last_name=last_name
-
-        
+    last_name = " " if last_name is None else last_name
     user_bio = replied_user.about
 
-    if user_bio == None:
-        user_bio=" "
-
-    else:
-        user_bio=user_bio
+    user_bio = " " if user_bio is None else user_bio
     await bot(functions.account.UpdateProfileRequest(
         first_name=first_name
     ))
@@ -116,14 +100,13 @@ async def get_full_user(event):
                     previous_message.forward.from_id or previous_message.forward.channel_id
                 )
             )
-            return replied_user, None
         else:
             replied_user = await event.client(
                 GetFullUserRequest(
                     previous_message.from_id
                 )
             )
-            return replied_user, None
+        return replied_user, None
     else:
         input_str = None
         try:

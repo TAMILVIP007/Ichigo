@@ -9,7 +9,7 @@ async def _(event):
     if event.fwd_from:
         return
     animation_interval = 3
-    animation_ttl = range(0,9)
+    animation_ttl = range(9)
     await event.edit('𝐻𝒶𝓅𝓅𝓎𝐻𝑜𝓁𝒾')
     animation_chars = [
         '[Happy Holy Once Again To All](https://telegra.ph/file/ee2a7df3bc0a3334194b0.jpg)',
@@ -22,7 +22,7 @@ async def _(event):
         '[❣️🎨ㅤ­](https://telegra.ph/file/d7d62ebbff4b5b092d4e0.jpg)',
         ]
     for i in animation_ttl:
-        	
+
         await asyncio.sleep(animation_interval)
         await event.edit(animation_chars[i % 8],link_preview=True)
 
